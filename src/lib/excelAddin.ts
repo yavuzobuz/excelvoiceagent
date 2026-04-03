@@ -3,22 +3,26 @@
  */
 
 export const generateManifest = (baseUrl: string) => {
-  const id = "a8b8c8d8-e8f8-4a8b-8c8d-8e8f8a8b8c8d"; // Fixed ID for this app
+  const id = "a8b8c8d8-e8f8-4a8b-8c8d-8e8f8a8b8c8d";
   const version = "1.0.0.0";
   const providerName = "AI Excel Assistant";
   const displayName = "AI Excel Assistant";
-  const description = "Yapay Zeka Destekli Excel Asistanı";
-  
-  // Ensure we use the correct base URL
-  const url = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-  const addinUrl = `${url}?addin=true`;
+  const description = "Yapay Zeka Destekli Excel Asistani";
+  const buttonLabel = "AI Asistani Ac";
+  const buttonTip = "Yapay zeka ile Excel verilerinizi yonetin.";
+  const icon16 = "https://www.gstatic.com/images/icons/material/system/1x/auto_awesome_black_24dp.png";
+  const icon80 = "https://www.gstatic.com/images/icons/material/system/2x/auto_awesome_black_24dp.png";
+
+  const url = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  const domain = url.replace(/\/$/, "");
+  const addinUrl = `${url}app?addin=true`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<OfficeApp 
-  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" 
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" 
-  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides" 
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
   <Id>${id}</Id>
   <Version>${version}</Version>
@@ -26,11 +30,11 @@ export const generateManifest = (baseUrl: string) => {
   <DefaultLocale>tr-TR</DefaultLocale>
   <DisplayName DefaultValue="${displayName}" />
   <Description DefaultValue="${description}" />
-  <IconUrl DefaultValue="${url}favicon.ico" />
-  <HighResolutionIconUrl DefaultValue="${url}favicon.ico" />
+  <IconUrl DefaultValue="${icon16}" />
+  <HighResolutionIconUrl DefaultValue="${icon80}" />
   <SupportUrl DefaultValue="${url}" />
   <AppDomains>
-    <AppDomain>${url}</AppDomain>
+    <AppDomain>${domain}</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Workbook" />
@@ -44,25 +48,25 @@ export const generateManifest = (baseUrl: string) => {
       <Host xsi:type="Workbook">
         <DesktopFormFactor>
           <GetStarted>
-            <Title DefaultValue="${displayName}" />
-            <Description DefaultValue="${description}" />
-            <LearnMoreUrl DefaultValue="${url}" />
+            <Title resid="GetStarted.Title" />
+            <Description resid="GetStarted.Description" />
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl" />
           </GetStarted>
           <FunctionFile resid="Commands.Url" />
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
             <OfficeTab id="TabHome">
               <Group id="AIAsistanGroup">
-                <Label DefaultValue="AI Asistan" />
+                <Label resid="GroupLabel" />
                 <Icon>
                   <bt:Image size="16" resid="Icon.16x16" />
                   <bt:Image size="32" resid="Icon.32x32" />
                   <bt:Image size="80" resid="Icon.80x80" />
                 </Icon>
                 <Control xsi:type="Button" id="TaskpaneButton">
-                  <Label DefaultValue="AI Asistanı Aç" />
+                  <Label resid="ButtonLabel" />
                   <Supertip>
-                    <Title DefaultValue="AI Asistanı Aç" />
-                    <Description DefaultValue="Yapay zeka ile Excel verilerinizi yönetin." />
+                    <Title resid="ButtonTitle" />
+                    <Description resid="ButtonTip" />
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon.16x16" />
@@ -82,21 +86,24 @@ export const generateManifest = (baseUrl: string) => {
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" resid="Icon.16x16" />
-        <bt:Image id="Icon.32x32" resid="Icon.32x32" />
-        <bt:Image id="Icon.80x80" resid="Icon.80x80" />
+        <bt:Image id="Icon.16x16" DefaultValue="${icon16}" />
+        <bt:Image id="Icon.32x32" DefaultValue="${icon16}" />
+        <bt:Image id="Icon.80x80" DefaultValue="${icon80}" />
       </bt:Images>
       <bt:Urls>
         <bt:Url id="Commands.Url" DefaultValue="${addinUrl}" />
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="${url}" />
         <bt:Url id="Taskpane.Url" DefaultValue="${addinUrl}" />
       </bt:Urls>
       <bt:ShortStrings>
+        <bt:String id="GetStarted.Title" DefaultValue="${displayName}" />
+        <bt:String id="GetStarted.Description" DefaultValue="${displayName} hazir." />
         <bt:String id="GroupLabel" DefaultValue="AI Asistan" />
-        <bt:String id="ButtonLabel" DefaultValue="AI Asistanı Aç" />
-        <bt:String id="ButtonTitle" DefaultValue="AI Asistanı Aç" />
+        <bt:String id="ButtonLabel" DefaultValue="${buttonLabel}" />
+        <bt:String id="ButtonTitle" DefaultValue="${buttonLabel}" />
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="ButtonTip" DefaultValue="Yapay zeka ile Excel verilerinizi yönetin." />
+        <bt:String id="ButtonTip" DefaultValue="${buttonTip}" />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
@@ -123,7 +130,6 @@ if '%errorlevel%' NEQ '0' (
 
 setlocal
 set "SCRIPT_DIR=%~dp0"
-:: Sondaki ters slash'i kaldir
 if "%SCRIPT_DIR:~-1%"=="\\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
 set "SHARE_NAME=AIAsistanManifest"
@@ -145,10 +151,8 @@ net share %SHARE_NAME% /delete >nul 2>&1
 net share %SHARE_NAME%="%SCRIPT_DIR%" /grant:everyone,READ >nul 2>&1
 
 echo [4/5] Guven Merkezi ayarlari (Kayit Defteri) zorla yaziliyor...
-:: Eski yol
 reg add "HKCU\\Software\\Microsoft\\Office\\16.0\\Excel\\Options\\WebExtensionCatalogs\\%SHARE_NAME%" /v "Url" /t REG_SZ /d "%NETWORK_PATH%" /f >nul
 reg add "HKCU\\Software\\Microsoft\\Office\\16.0\\Excel\\Options\\WebExtensionCatalogs\\%SHARE_NAME%" /v "Flags" /t REG_DWORD /d 1 /f >nul
-:: Yeni yol (Guvenilen Eklenti Kataloglari)
 reg add "HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\TrustedCatalogs\\%SHARE_NAME%" /v "Id" /t REG_SZ /d "%NETWORK_PATH%" /f >nul
 reg add "HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\TrustedCatalogs\\%SHARE_NAME%" /v "Flags" /t REG_DWORD /d 1 /f >nul
 
@@ -170,24 +174,22 @@ export const downloadAddinFiles = () => {
   const baseUrl = window.location.origin;
   const manifestContent = generateManifest(baseUrl);
   const manifestFileName = "ai-excel-assistant-manifest.xml";
-  
+
   const batContent = generateInstallerBat(manifestFileName);
   const batFileName = "install-addin.bat";
 
-  // Download Manifest
-  const manifestBlob = new Blob([manifestContent], { type: 'text/xml' });
+  const manifestBlob = new Blob([manifestContent], { type: "text/xml" });
   const manifestUrl = URL.createObjectURL(manifestBlob);
-  const manifestLink = document.createElement('a');
+  const manifestLink = document.createElement("a");
   manifestLink.href = manifestUrl;
   manifestLink.download = manifestFileName;
   document.body.appendChild(manifestLink);
   manifestLink.click();
   document.body.removeChild(manifestLink);
 
-  // Download BAT
-  const batBlob = new Blob([batContent], { type: 'text/plain' });
+  const batBlob = new Blob([batContent], { type: "text/plain" });
   const batUrl = URL.createObjectURL(batBlob);
-  const batLink = document.createElement('a');
+  const batLink = document.createElement("a");
   batLink.href = batUrl;
   batLink.download = batFileName;
   document.body.appendChild(batLink);
@@ -196,5 +198,5 @@ export const downloadAddinFiles = () => {
 };
 
 export const isRunningInExcel = () => {
-  return typeof Office !== 'undefined' && Office.context && Office.context.host === Office.HostType.Excel;
+  return typeof Office !== "undefined" && Office.context && Office.context.host === Office.HostType.Excel;
 };

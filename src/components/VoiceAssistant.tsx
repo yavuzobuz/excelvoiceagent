@@ -218,6 +218,7 @@ export function VoiceAssistant({ excelData, isExcelAddin, onUpdateExcelData }: V
   const recorderRef = useRef<AudioRecorder | null>(null);
   const playerRef = useRef<AudioPlayer | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
 
   const availableSearchFilters = useMemo(() => {
     if (!searchResults || searchResults.length === 0) return {};
@@ -272,6 +273,17 @@ export function VoiceAssistant({ excelData, isExcelAddin, onUpdateExcelData }: V
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [chatHistory]);
+
+  const keepFocusInTaskpane = (event: React.SyntheticEvent<HTMLElement>) => {
+    event.stopPropagation();
+    window.setTimeout(() => {
+      textInputRef.current?.focus();
+    }, 0);
+  };
+
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+  };
 
   const connect = async (startMic = true, initialText?: string) => {
     setIsConnecting(true);
@@ -1248,9 +1260,15 @@ Doğrudan Excel dosyasına müdahale edemezsin. Değişiklikleri 'modifyExcelDat
             className="flex gap-2 items-center"
           >
             <input
+              ref={textInputRef}
               type="text"
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
+              onClick={keepFocusInTaskpane}
+              onMouseDown={keepFocusInTaskpane}
+              onFocus={keepFocusInTaskpane}
+              onKeyDown={handleInputKeyDown}
+              onKeyUp={keepFocusInTaskpane}
               disabled={isConnecting}
               placeholder="Mesajınızı yazın..."
               className="flex-1 px-4 py-3 text-sm rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:opacity-50 disabled:bg-slate-50 transition-all"

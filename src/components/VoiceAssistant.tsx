@@ -24,6 +24,12 @@ interface FormulaConfig {
   didYouMean?: string;
 }
 
+interface ModifiedExcelResult {
+  data: Record<string, any[]>;
+  explanation: string;
+  appliedInWorkbook?: boolean;
+}
+
 const generateExcelFormulaDeclaration: FunctionDeclaration = {
   name: "generateExcelFormula",
   description: "Kullanıcı Excel formülü (DÜŞEYARA, ÇAPRAZARA, EĞER, İNDİS, KAÇINCI vb. 50+ formül) veya Makro/VBA/Office Script kodu istediğinde bu fonksiyonu çağır. Ayrıca kullanıcı hatalı veya belirsiz bir komut verirse 'didYouMean' (Bunu mu demek istediniz?) alanını doldurarak onu yönlendir.",
@@ -207,7 +213,7 @@ export function VoiceAssistant({ excelData, isExcelAddin, onUpdateExcelData }: V
   const [chartParams, setChartParams] = useState<any>(null);
   const [activeFilter, setActiveFilter] = useState<{column: string, value: string} | null>(null);
   const [formulaConfig, setFormulaConfig] = useState<FormulaConfig | null>(null);
-  const [modifiedExcelData, setModifiedExcelData] = useState<{data: Record<string, any[]>, explanation: string} | null>(null);
+  const [modifiedExcelData, setModifiedExcelData] = useState<ModifiedExcelResult | null>(null);
   const [searchResults, setSearchResults] = useState<any[] | null>(null);
   const [searchFilters, setSearchFilters] = useState<Record<string, string>>({});
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -285,6 +291,58 @@ export function VoiceAssistant({ excelData, isExcelAddin, onUpdateExcelData }: V
     event.stopPropagation();
   };
 
+  const convertSheetDataToValues = (sheetData: any[]) => {
+    if (!sheetData || sheetData.length === 0) {
+      return [['Bos']];
+    }
+
+    const headers: string[] = Array.from(
+      sheetData.reduce((set, row) => {
+        Object.keys(row || {}).forEach((key) => set.add(key));
+        return set;
+      }, new Set<string>()),
+    );
+
+    const rows = sheetData.map((row) => headers.map((header) => row?.[header] ?? ''));
+    return [headers, ...rows];
+  };
+
+  const syncWorkbookWithData = async (newData: Record<string, any[]>) => {
+    if (typeof Excel === 'undefined') return;
+
+    await Excel.run(async (context) => {
+      const workbook = context.workbook;
+      const worksheets = workbook.worksheets;
+      worksheets.load('items/name');
+      await context.sync();
+
+      for (const [sheetName, sheetData] of Object.entries(newData)) {
+        const safeSheetName = (sheetName || 'Sayfa').substring(0, 31);
+        let worksheet = worksheets.items.find((item) => item.name === safeSheetName);
+
+        if (!worksheet) {
+          worksheet = worksheets.add(safeSheetName);
+        }
+
+        const usedRange = worksheet.getUsedRangeOrNullObject(true);
+        usedRange.load('address');
+        await context.sync();
+
+        if (!(usedRange as any).isNullObject) {
+          usedRange.clear();
+        }
+
+        const values = convertSheetDataToValues(sheetData);
+        const targetRange = worksheet.getRangeByIndexes(0, 0, values.length, values[0].length);
+        targetRange.values = values;
+        targetRange.format.autofitColumns();
+        targetRange.format.autofitRows();
+      }
+
+      await context.sync();
+    });
+  };
+
   const connect = async (startMic = true, initialText?: string) => {
     setIsConnecting(true);
     setChartConfig(null);
@@ -322,6 +380,7 @@ EXCEL EKLENTİSİ MODU AKTİF:
 2. 'createExcelChart' aracını kullanarak doğrudan Excel sayfasına grafik ekleyebilirsin.
 3. Kullanıcı bir değişiklik istediğinde (Örn: "A1 hücresine 100 yaz"), bunu 'writeToExcel' ile yap.
 4. Kullanıcı bir grafik istediğinde, hem 'renderChart' (web panelinde göstermek için) hem de 'createExcelChart' (Excel'e eklemek için) araçlarını kullanabilirsin.
+5. Kullanıcı yeni bir sayfa oluşturmak, mevcut sayfayı dönüştürmek, bir sütunu başka sayfaya kopyalamak veya tabloyu toplu biçimde değiştirmek isterse 'modifyExcelData' kullanabilirsin. Bu modda 'modifyExcelData' sonucu indirilecek yeni dosya değil, doğrudan açık Excel çalışma kitabına uygulanır.
 ` : `
 STANDART MOD:
 Doğrudan Excel dosyasına müdahale edemezsin. Değişiklikleri 'modifyExcelData' ile yapıp yeni dosya indirtmelisin.
@@ -534,13 +593,23 @@ Doğrudan Excel dosyasına müdahale edemezsin. Değişiklikleri 'modifyExcelDat
                       const newData = processData(excelData);
                       
                       if (newData && typeof newData === 'object') {
-                        setModifiedExcelData({
-                          data: newData,
-                          explanation: args.explanation
-                        });
-                        
                         if (onUpdateExcelData) {
                           onUpdateExcelData(newData);
+                        }
+
+                        if (isExcelAddin && typeof Excel !== 'undefined') {
+                          await syncWorkbookWithData(newData);
+                          setModifiedExcelData({
+                            data: newData,
+                            explanation: args.explanation,
+                            appliedInWorkbook: true
+                          });
+                        } else {
+                          setModifiedExcelData({
+                            data: newData,
+                            explanation: args.explanation,
+                            appliedInWorkbook: false
+                          });
                         }
                         
                         sessionPromise.then((session) => {
@@ -549,7 +618,9 @@ Doğrudan Excel dosyasına müdahale edemezsin. Değişiklikleri 'modifyExcelDat
                               id: call.id,
                               name: call.name,
                               response: { 
-                                result: "Veriler başarıyla işlendi, ekranda güncellendi ve indirme butonu gösterildi."
+                                result: isExcelAddin
+                                  ? "Veriler basariyla islendi ve acik Excel calisma kitabina uygulandi."
+                                  : "Veriler basariyla islendi, ekranda guncellendi ve indirme butonu gosterildi."
                               }
                             }]
                           });
@@ -1017,17 +1088,22 @@ Doğrudan Excel dosyasına müdahale edemezsin. Değişiklikleri 'modifyExcelDat
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                 İşlem Tamamlandı
               </h3>
-              <button 
+              {!modifiedExcelData.appliedInWorkbook && <button 
                 onClick={handleDownloadModified}
                 className="flex items-center gap-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-xl transition-colors shadow-sm"
               >
                 <Download className="w-4 h-4" />
                 Yeni Excel'i İndir
-              </button>
+              </button>}
             </div>
             <p className="text-sm text-emerald-700 leading-relaxed">
               {modifiedExcelData.explanation}
             </p>
+            {modifiedExcelData.appliedInWorkbook && (
+              <p className="mt-3 text-xs font-medium text-emerald-800">
+                Degisiklikler acik calisma kitabina uygulandi. Sonucu Excel sayfalarinda gorebilirsiniz.
+              </p>
+            )}
           </div>
         )}
 

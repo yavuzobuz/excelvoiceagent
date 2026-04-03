@@ -1,0 +1,7 @@
+{
+  "name": "Excel Veri Arama Asistanı SON hali ",
+  "description": "Excel'deki belirli verileri bulmak için kullanıcının sorduğu komutları anlayıp ilgili satırları veya verileri bulup ekrana yansıtan asistan.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

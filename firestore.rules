@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required, immutable) - User's ID
+    //   - email: string (required, immutable) - User's email
+    //   - displayName: string (optional) - User's display name
+    //   - photoURL: string (optional) - User's photo URL
+    //   - createdAt: timestamp (required, immutable) - Creation time
+    //
+    // Collection: users/{userId}/saved_items
+    // Document ID: {itemId}
+    // Fields:
+    //   - userId: string (required, immutable) - User's ID
+    //   - type: string (required) - 'formula' or 'macro'
+    //   - name: string (required) - Name of the item
+    //   - code: string (required) - The formula or VBA code
+    //   - explanation: string (optional) - Explanation of the code
+    //   - parameters: list (optional) - List of parameters
+    //   - createdAt: timestamp (required, immutable) - Creation time
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidList(list, maxSize) {
+      return list is list && list.size() <= maxSize;
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Domain Validators
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.email is string && isValidEmail(data.email) && data.email.size() < 200 &&
+             data.createdAt is timestamp &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500));
+    }
+
+    function isValidSavedItem(data) {
+      return hasRequiredFields(['userId', 'type', 'name', 'code', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.type in ['formula', 'macro'] &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.code is string && data.code.size() > 0 && data.code.size() < 50000 &&
+             data.createdAt is timestamp &&
+             (!('explanation' in data) || (data.explanation is string && data.explanation.size() <= 5000)) &&
+             (!('parameters' in data) || isValidList(data.parameters, 50));
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && uidUnchanged();
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified() && areImmutableFieldsUnchanged(['createdAt', 'email']);
+      allow delete: if isOwner(userId);
+
+      match /saved_items/{itemId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSavedItem(request.resource.data) && request.resource.data.userId == request.auth.uid;
+        allow update: if isOwner(userId) && isValidSavedItem(request.resource.data) && request.resource.data.userId == resource.data.userId && areImmutableFieldsUnchanged(['createdAt', 'userId']);
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

@@ -4,7 +4,7 @@
 
 export const generateManifest = (baseUrl: string) => {
   const id = "a8b8c8d8-e8f8-4a8b-8c8d-8e8f8a8b8c8d";
-  const version = "1.0.0.0";
+  const version = "1.0.1.0";
   const providerName = "AI Excel Assistant";
   const displayName = "AI Excel Assistant";
   const description = "Yapay Zeka Destekli Excel Asistani";
@@ -15,7 +15,7 @@ export const generateManifest = (baseUrl: string) => {
 
   const url = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
   const domain = url.replace(/\/$/, "");
-  const addinUrl = `${url}app?addin=true`;
+  const addinUrl = `${url}?addin=true`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp

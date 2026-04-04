@@ -6,7 +6,7 @@
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
   <Id>a8b8c8d8-e8f8-4a8b-8c8d-8e8f8a8b8c8d</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.0.1.0</Version>
   <ProviderName>AI Excel Assistant</ProviderName>
   <DefaultLocale>tr-TR</DefaultLocale>
   <DisplayName DefaultValue="AI Excel Assistant" />
@@ -21,7 +21,7 @@
     <Host Name="Workbook" />
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://excelvoiceagent.vercel.app/app?addin=true" />
+    <SourceLocation DefaultValue="https://excelvoiceagent.vercel.app/?addin=true" />
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -72,9 +72,9 @@
         <bt:Image id="Icon.80x80" DefaultValue="https://www.gstatic.com/images/icons/material/system/2x/auto_awesome_black_24dp.png" />
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Commands.Url" DefaultValue="https://excelvoiceagent.vercel.app/app?addin=true" />
+        <bt:Url id="Commands.Url" DefaultValue="https://excelvoiceagent.vercel.app/?addin=true" />
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://excelvoiceagent.vercel.app/" />
-        <bt:Url id="Taskpane.Url" DefaultValue="https://excelvoiceagent.vercel.app/app?addin=true" />
+        <bt:Url id="Taskpane.Url" DefaultValue="https://excelvoiceagent.vercel.app/?addin=true" />
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="AI Excel Assistant" />

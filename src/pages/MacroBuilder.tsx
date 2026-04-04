@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Terminal, Play, CheckCircle2, Copy, Sparkles, Settings, FileSpreadsheet, Loader2, Save, User, LogIn } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Terminal, Play, CheckCircle2, Copy, Sparkles, Settings, FileSpreadsheet, Loader2, Save, User, LogIn, Globe, ShieldCheck, ListChecks, WandSparkles } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { GoogleGenAI } from '@google/genai';
 import { MacroVoiceAssistant } from '../components/MacroVoiceAssistant';
@@ -13,6 +13,17 @@ interface MacroStep {
   id: string;
   type: string;
   description: string;
+}
+
+interface GeneratedMacroResult {
+  formulaName?: string;
+  code: string;
+  explanation: string;
+  parameters?: Array<{ name: string; description: string }>;
+  researchSummary?: string;
+  riskChecks?: string[];
+  usageSteps?: string[];
+  assumptions?: string[];
 }
 
 const STEP_TYPES = [
@@ -31,7 +42,7 @@ export function MacroBuilder() {
     { id: '1', type: 'Veri Filtreleme', description: '' }
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedMacro, setGeneratedMacro] = useState<{ code: string; explanation: string; formulaName?: string; parameters?: any[] } | null>(null);
+  const [generatedMacro, setGeneratedMacro] = useState<GeneratedMacroResult | null>(null);
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -98,9 +109,22 @@ export function MacroBuilder() {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
-      const prompt = `Sen uzman bir Excel VBA geliştiricisisin. Kullanıcı adım adım bir makro oluşturmak istiyor.
+      const prompt = `Sen ileri seviye bir Excel VBA ve Office otomasyon mühendisisin. Kullanıcı adım adım bir makro oluşturmak istiyor.
 
-Aşağıdaki adımları sırasıyla gerçekleştiren, optimize edilmiş, hatasız ve Türkçe açıklamalı bir VBA makrosu yaz.
+KRİTİK KURAL:
+1. VBA kodunu üretmeden ÖNCE mutlaka googleSearch aracını kullan.
+2. Aramada en iyi uygulamalar, Excel VBA uyumluluğu, güvenlik, nesne modeli, hata yönetimi ve performans için ilgili kaynakları tara.
+3. Web araması yapmadan doğrudan kod üretme.
+4. Son çıktında araştırma sonucunu kısa bir özet halinde belirt.
+
+Hedef:
+- Aşağıdaki adımları sırasıyla gerçekleştiren
+- optimize edilmiş
+- hata yakalama içeren
+- performans odaklı
+- Türkçe açıklamalı
+- bakım yapılabilir
+bir VBA makrosu yaz.
 
 Adımlar:
 ${steps.map((s, i) => `${i + 1}. [${s.type}] ${s.description}`).join('\n')}
@@ -110,6 +134,10 @@ Lütfen yanıtını aşağıdaki JSON formatında döndür:
   "formulaName": "Makronun kısa adı (örneğin: 'Veri Temizleme Makrosu')",
   "code": "VBA kodu buraya gelecek (sadece kod, markdown işaretleri olmadan)",
   "explanation": "Makronun ne yaptığını ve Excel'de nasıl kullanılacağını anlatan kısa bir Türkçe açıklama",
+  "researchSummary": "Web aramasında bulduğun en önemli VBA kararlarını özetle",
+  "riskChecks": ["Kodun önlediği riskler", "Örn: ekran güncelleme kapatma", "Örn: boş sayfa kontrolü"],
+  "usageSteps": ["ALT+F11", "Insert > Module", "Kodu yapıştır", "F5 ile çalıştır"],
+  "assumptions": ["Varsayımlar", "Örn: aktif sayfada başlık satırı var"],
   "parameters": [
     {
       "name": "Parametre Adı",
@@ -123,7 +151,8 @@ Lütfen yanıtını aşağıdaki JSON formatında döndür:
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
-          temperature: 0.2
+          temperature: 0.2,
+          tools: [{ googleSearch: {} }]
         }
       });
 
@@ -215,6 +244,20 @@ Lütfen yanıtını aşağıdaki JSON formatında döndür:
           <p className="text-slate-600 max-w-2xl mx-auto text-lg">
             Yapmak istediğiniz işlemleri sırasıyla tanımlayın, yapay zeka sizin için en optimize VBA kodunu saniyeler içinde oluştursun.
           </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-xs sm:text-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-emerald-700">
+              <Globe className="h-4 w-4" />
+              Makro üretmeden önce web araştırması zorunlu
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-emerald-700">
+              <ShieldCheck className="h-4 w-4" />
+              Hata yönetimi ve güvenlik kontrolü dahil
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-emerald-700">
+              <WandSparkles className="h-4 w-4" />
+              Araştırma özeti ile birlikte çıktı verir
+            </span>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-12 gap-8">
@@ -362,6 +405,17 @@ Lütfen yanıtını aşağıdaki JSON formatında döndür:
                     <pre className="text-emerald-300 font-mono text-sm leading-relaxed whitespace-pre-wrap">
                       {generatedMacro.code}
                     </pre>
+                    {generatedMacro.researchSummary && (
+                      <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                        <h4 className="text-emerald-400 font-bold mb-2 flex items-center gap-2 text-sm">
+                          <Globe className="w-4 h-4" />
+                          Araştırma Özeti
+                        </h4>
+                        <p className="text-slate-300 text-sm leading-relaxed">
+                          {generatedMacro.researchSummary}
+                        </p>
+                      </div>
+                    )}
                     <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                       <h4 className="text-emerald-400 font-bold mb-2 flex items-center gap-2 text-sm">
                         <Sparkles className="w-4 h-4" />
@@ -371,6 +425,48 @@ Lütfen yanıtını aşağıdaki JSON formatında döndür:
                         {generatedMacro.explanation}
                       </p>
                     </div>
+                    {generatedMacro.usageSteps && generatedMacro.usageSteps.length > 0 && (
+                      <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                        <h4 className="text-emerald-400 font-bold mb-3 flex items-center gap-2 text-sm">
+                          <ListChecks className="w-4 h-4" />
+                          Uygulama Adımları
+                        </h4>
+                        <div className="space-y-2 text-sm text-slate-300">
+                          {generatedMacro.usageSteps.map((step, index) => (
+                            <div key={`${step}-${index}`} className="flex gap-3">
+                              <span className="text-emerald-400 font-bold">{index + 1}.</span>
+                              <span>{step}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {generatedMacro.riskChecks && generatedMacro.riskChecks.length > 0 && (
+                      <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                        <h4 className="text-emerald-400 font-bold mb-3 flex items-center gap-2 text-sm">
+                          <ShieldCheck className="w-4 h-4" />
+                          Güvenlik ve Dayanıklılık
+                        </h4>
+                        <ul className="space-y-2 text-sm text-slate-300">
+                          {generatedMacro.riskChecks.map((item, index) => (
+                            <li key={`${item}-${index}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {generatedMacro.assumptions && generatedMacro.assumptions.length > 0 && (
+                      <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                        <h4 className="text-emerald-400 font-bold mb-3 flex items-center gap-2 text-sm">
+                          <Settings className="w-4 h-4" />
+                          Varsayımlar
+                        </h4>
+                        <ul className="space-y-2 text-sm text-slate-300">
+                          {generatedMacro.assumptions.map((item, index) => (
+                            <li key={`${item}-${index}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4">

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, User, Settings, Mic, Volume2, Shield, Bell, CheckCircle2, AlertCircle, LogOut, Code, FileSpreadsheet, Copy, Trash2, Search, Filter, Edit2, Save, X, AlertTriangle, Globe, Download } from 'lucide-react';
-import { Logo } from './LandingPage';
 import { Footer } from '../components/Footer';
+import { Logo } from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
 import { logout, signInWithGoogle, signInWithMicrosoft, db } from '../firebase';
 import { collection, query, onSnapshot, orderBy, deleteDoc, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';

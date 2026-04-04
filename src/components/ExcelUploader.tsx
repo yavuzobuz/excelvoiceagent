@@ -38,10 +38,10 @@ export function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
       return;
     }
 
-    // Check file size (max 5MB to prevent browser crash)
-    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    // Check file size (max 25MB)
+    const MAX_FILE_SIZE = 25 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
-      setError("Dosya boyutu çok büyük. Tarayıcının çökmesini önlemek için lütfen 5MB'dan küçük bir dosya yükleyin.");
+      setError("Dosya boyutu çok büyük. Tarayıcının çökmesini önlemek için lütfen 25MB'dan küçük bir dosya yükleyin.");
       setIsUploading(false);
       return;
     }
@@ -82,8 +82,8 @@ export function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
             const rowCount = range.e.r - range.s.r + 1;
             
             totalRows += rowCount;
-            if (totalRows > 2500) {
-              throw new Error('Analiz kalitesini yüksek tutmak ve tarayıcı çökmesini önlemek amacıyla sistem en fazla 2.500 satırlık dosyaları kabul etmektedir. Lütfen dosyanızı küçültüp tekrar deneyin.');
+            if (totalRows > 50000) {
+              throw new Error('Tarayıcı performansını korumak amacıyla sistem en fazla 50.000 satırlık dosyaları kabul etmektedir. Lütfen dosyanızı küçültüp tekrar deneyin.');
             }
 
             const rawData = XLSX.utils.sheet_to_json(ws, { raw: true, defval: '' });
@@ -227,7 +227,7 @@ export function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
                 <UploadCloud className="w-10 h-10 text-emerald-600" />
               </div>
               <p className="mb-2 text-lg text-slate-700"><span className="font-semibold text-emerald-700">Yüklemek için tıklayın</span> veya sürükleyip bırakın</p>
-              <p className="text-sm text-slate-500 font-medium">XLSX, XLS, CSV (Maks. 2500 Satır)</p>
+              <p className="text-sm text-slate-500 font-medium">XLSX, XLS, CSV (Maks. 50.000 Satır)</p>
             </>
           )}
         </div>

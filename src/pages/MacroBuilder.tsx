@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Terminal, Play, CheckCircle2, Copy, Sparkles, Settings, FileSpreadsheet, Loader2, Save, User, LogIn } from 'lucide-react';
-import { Logo } from './LandingPage';
+import { Logo } from '../components/Logo';
 import { GoogleGenAI } from '@google/genai';
 import { MacroVoiceAssistant } from '../components/MacroVoiceAssistant';
 import { useAuth } from '../contexts/AuthContext';

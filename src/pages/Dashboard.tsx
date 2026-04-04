@@ -3,7 +3,7 @@ import { ExcelUploader } from '../components/ExcelUploader';
 import { VoiceAssistant } from '../components/VoiceAssistant';
 import { Table, Sparkles, User, FileSpreadsheet, FunctionSquare, Terminal, LogIn, Settings2, X, Filter, Download, Monitor } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Logo } from './LandingPage';
+import { Logo } from '../components/Logo';
 import { Footer } from '../components/Footer';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community';

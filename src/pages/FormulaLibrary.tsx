@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Logo } from './LandingPage';
+import { Logo } from '../components/Logo';
 import { Search, Calculator, Type, Calendar, ArrowLeft, BookOpen, Sparkles, Code, FunctionSquare, Database, Sigma, Terminal, Copy, CheckCircle2, Globe, Info, User, LogIn } from 'lucide-react';
 import { FormulaVoiceAssistant } from '../components/FormulaVoiceAssistant';
 import { useAuth } from '../contexts/AuthContext';

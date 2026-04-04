@@ -146,10 +146,10 @@ export function Dashboard() {
   }, [currentSheetData]);
 
   const pinnedColumnKeys = useMemo(() => {
-    const priorityPatterns = [/d\.?t/i, /dt/i, /borclu/i, /ad/i, /isim/i, /name/i, /telefon/i, /tc/i, /id/i];
+    const priorityPatterns = [/^d\.?t\s/i, /^dt$/i, /^borçlu$/i, /^ad$/i, /^ad\s/i, /^isim/i, /^name$/i, /^telefon/i, /^tc\s/i, /^tc$/i];
     const prioritized = currentSheetColumns
-      .filter((key) => priorityPatterns.some((pattern) => pattern.test(key)))
-      .slice(0, 3);
+      .filter((key) => priorityPatterns.some((pattern) => pattern.test(key.trim())))
+      .slice(0, 2);
     return new Set(prioritized);
   }, [currentSheetColumns]);
 
@@ -549,9 +549,17 @@ export function Dashboard() {
                     pagination={true}
                     paginationPageSize={100}
                     paginationPageSizeSelector={[50, 100, 200, 500]}
-                    autoSizeStrategy={{ type: 'fitCellContents' }}
-                    onGridReady={() => window.setTimeout(autoSizeGridColumns, 50)}
-                    onFirstDataRendered={() => window.setTimeout(autoSizeGridColumns, 50)}
+                    autoSizeStrategy={{ type: 'fitCellContents', skipHeader: false }}
+                    suppressColumnVirtualisation={false}
+                    onFirstDataRendered={() => {
+                      const api = gridRef.current?.api;
+                      if (api) {
+                        try {
+                          const allCols = api.getColumns()?.map((c: any) => c.getColId()) || [];
+                          if (allCols.length > 0) api.autoSizeColumns(allCols);
+                        } catch (e) { /* ignore */ }
+                      }
+                    }}
                     onCellFocused={(event) => {
                       if (event.column) {
                         setSelectedColumnKey(event.column.getColId());

@@ -528,7 +528,7 @@ export function Dashboard() {
                   </div>
                 </div>
                 
-                <div className="flex-1 w-full h-full relative" onClick={() => setContextMenu(null)}>
+                <div className="flex-1 w-full h-full relative overflow-hidden" onClick={() => setContextMenu(null)}>
                   <AgGridReact
                     ref={gridRef}
                     theme={themeQuartz.withParams({

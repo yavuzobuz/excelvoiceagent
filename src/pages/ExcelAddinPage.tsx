@@ -3,6 +3,7 @@ import { Loader2, RefreshCw, FileSpreadsheet, AlertCircle, CheckCircle2 } from '
 import { VoiceAssistant } from '../components/VoiceAssistant';
 
 type LoadState = 'booting' | 'waiting-office' | 'loading-sheet' | 'ready' | 'error';
+const EXCEL_READ_CHUNK_SIZE = 500;
 
 export function ExcelAddinPage() {
   const [loadState, setLoadState] = useState<LoadState>('booting');
@@ -87,26 +88,46 @@ export function ExcelAddinPage() {
         worksheets.load('items/name');
         await context.sync();
 
-        const sheetRanges = worksheets.items.map((sheet) => {
-          const range = sheet.getUsedRangeOrNullObject(true);
-          range.load(['isNullObject', 'values', 'text']);
-          return { sheet, range };
-        });
-
-        await context.sync();
-
         const workbookData: Record<string, any[]> = {};
+        for (const sheet of worksheets.items) {
+          const usedRange = sheet.getUsedRangeOrNullObject(true);
+          usedRange.load(['isNullObject', 'rowCount', 'columnCount']);
+          await context.sync();
 
-        sheetRanges.forEach(({ sheet, range }) => {
-          if (range.isNullObject) {
-            return;
+          if (usedRange.isNullObject || usedRange.rowCount === 0 || usedRange.columnCount === 0) {
+            continue;
           }
 
-          const rows = mapRangeToRows((range.values as any[][]) || [], (range.text as string[][]) || []);
+          let rows: Record<string, any>[] = [];
+
+          try {
+            const fullRange = sheet.getRangeByIndexes(0, 0, usedRange.rowCount, usedRange.columnCount);
+            fullRange.load(['values', 'text']);
+            await context.sync();
+            rows = mapRangeToRows((fullRange.values as any[][]) || [], (fullRange.text as string[][]) || []);
+          } catch (fullReadError) {
+            console.warn(`Tam sayfa okuma basarisiz oldu, blok okumaya geciliyor: ${sheet.name}`, fullReadError);
+
+            let combinedValues: any[][] = [];
+            let combinedTexts: string[][] = [];
+
+            for (let startRow = 0; startRow < usedRange.rowCount; startRow += EXCEL_READ_CHUNK_SIZE) {
+              const chunkRowCount = Math.min(EXCEL_READ_CHUNK_SIZE, usedRange.rowCount - startRow);
+              const chunkRange = sheet.getRangeByIndexes(startRow, 0, chunkRowCount, usedRange.columnCount);
+              chunkRange.load(['values', 'text']);
+              await context.sync();
+
+              combinedValues = combinedValues.concat((chunkRange.values as any[][]) || []);
+              combinedTexts = combinedTexts.concat((chunkRange.text as string[][]) || []);
+            }
+
+            rows = mapRangeToRows(combinedValues, combinedTexts);
+          }
+
           if (rows.length > 0) {
             workbookData[sheet.name || `Sayfa${Object.keys(workbookData).length + 1}`] = rows;
           }
-        });
+        }
 
         if (Object.keys(workbookData).length === 0) {
           throw new Error('Calisma kitabinda okunabilir veri bulunamadi.');

@@ -10,6 +10,66 @@ export function ExcelAddinPage() {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [excelData, setExcelData] = useState<Record<string, any[]> | null>(null);
 
+  const mapRangeToRows = (values: any[][] = [], texts: string[][] = []) => {
+    const rawValues = values.map((row, rowIndex) =>
+      row.map((cell, columnIndex) => {
+        const textValue = texts?.[rowIndex]?.[columnIndex];
+        if (cell !== null && cell !== undefined && String(cell).trim() !== '') {
+          return cell;
+        }
+        return textValue ?? '';
+      })
+    );
+
+    const nonEmptyRows = rawValues.filter((row) =>
+      row.some((cell) => String(cell ?? '').trim() !== '')
+    );
+
+    if (nonEmptyRows.length === 0) {
+      return [];
+    }
+
+    const maxColumnCount = nonEmptyRows.reduce((max, row) => {
+      const lastFilledIndex = row.reduce((lastIndex, cell, index) => {
+        return String(cell ?? '').trim() !== '' ? index : lastIndex;
+      }, -1);
+      return Math.max(max, lastFilledIndex + 1);
+    }, 0);
+
+    if (maxColumnCount === 0) {
+      return [];
+    }
+
+    const normalizedValues = nonEmptyRows.map((row) =>
+      Array.from({ length: maxColumnCount }, (_, index) => row[index] ?? '')
+    );
+
+    const firstRow = normalizedValues[0] || [];
+    const hasHeaderRow = firstRow.some((cell) => String(cell ?? '').trim() !== '');
+    const headers = firstRow.map((cell, index) => {
+      const raw = String(cell ?? '').trim();
+      return raw || `Kolon ${index + 1}`;
+    });
+
+    const dataRowsSource =
+      normalizedValues.length > 1
+        ? normalizedValues.slice(1)
+        : [normalizedValues[0].map((cell) => cell ?? '')];
+
+    const finalHeaders =
+      normalizedValues.length > 1 && hasHeaderRow
+        ? headers
+        : headers.map((_, index) => `Kolon ${index + 1}`);
+
+    return dataRowsSource.map((row) => {
+      const item: Record<string, any> = {};
+      finalHeaders.forEach((header, index) => {
+        item[header] = row[index] ?? '';
+      });
+      return item;
+    });
+  };
+
   const loadDataFromExcel = async () => {
     if (typeof Excel === 'undefined') {
       setLoadState('error');
@@ -18,41 +78,45 @@ export function ExcelAddinPage() {
     }
 
     setLoadState('loading-sheet');
-    setStatusText('Aktif sayfadaki veriler okunuyor...');
+    setStatusText('Calisma kitabindaki sayfalar okunuyor...');
     setErrorText(null);
 
     try {
       await Excel.run(async (context) => {
-        const sheet = context.workbook.worksheets.getActiveWorksheet();
-        const range = sheet.getUsedRangeOrNullObject();
-        range.load(['values', 'rowCount', 'columnCount']);
-        sheet.load('name');
+        const worksheets = context.workbook.worksheets;
+        worksheets.load('items/name');
         await context.sync();
 
-        if ((range as any).isNullObject || !range.values || range.values.length === 0) {
-          throw new Error('Aktif sayfada okunabilir veri bulunamadi.');
+        const sheetRanges = worksheets.items.map((sheet) => {
+          const range = sheet.getUsedRangeOrNullObject(true);
+          range.load(['isNullObject', 'values', 'text']);
+          return { sheet, range };
+        });
+
+        await context.sync();
+
+        const workbookData: Record<string, any[]> = {};
+
+        sheetRanges.forEach(({ sheet, range }) => {
+          if (range.isNullObject) {
+            return;
+          }
+
+          const rows = mapRangeToRows((range.values as any[][]) || [], (range.text as string[][]) || []);
+          if (rows.length > 0) {
+            workbookData[sheet.name || `Sayfa${Object.keys(workbookData).length + 1}`] = rows;
+          }
+        });
+
+        if (Object.keys(workbookData).length === 0) {
+          throw new Error('Calisma kitabinda okunabilir veri bulunamadi.');
         }
 
-        const values = range.values as any[][];
-        const headers = (values[0] || []).map((cell, index) => {
-          const raw = String(cell ?? '').trim();
-          return raw || `Kolon ${index + 1}`;
-        });
-
-        const rows = values.slice(1).map((row) => {
-          const item: Record<string, any> = {};
-          headers.forEach((header, index) => {
-            item[header] = row[index] ?? '';
-          });
-          return item;
-        });
-
-        const sheetName = sheet.name || 'Sayfa1';
-        setExcelData({ [sheetName]: rows });
+        setExcelData(workbookData);
       });
 
       setLoadState('ready');
-      setStatusText('Excel verisi basariyla yuklendi.');
+      setStatusText('Calisma kitabi verisi basariyla yuklendi.');
     } catch (error) {
       console.error('Excel veri yukleme hatasi:', error);
       setLoadState('error');
@@ -63,6 +127,7 @@ export function ExcelAddinPage() {
   useEffect(() => {
     let pollTimer: number | undefined;
     let timeoutTimer: number | undefined;
+    let cancelled = false;
 
     const waitForOffice = () => {
       setLoadState('waiting-office');
@@ -71,7 +136,12 @@ export function ExcelAddinPage() {
       pollTimer = window.setInterval(() => {
         if (typeof Office !== 'undefined' && typeof Office.onReady === 'function') {
           window.clearInterval(pollTimer);
+          if (timeoutTimer) {
+            window.clearTimeout(timeoutTimer);
+          }
+
           Office.onReady((info) => {
+            if (cancelled) return;
             if (info?.host === Office.HostType.Excel) {
               loadDataFromExcel();
             } else {
@@ -94,6 +164,7 @@ export function ExcelAddinPage() {
     waitForOffice();
 
     return () => {
+      cancelled = true;
       if (pollTimer) {
         window.clearInterval(pollTimer);
       }
@@ -111,9 +182,10 @@ export function ExcelAddinPage() {
 
   const summaryText = useMemo(() => {
     if (!excelData || !currentSheetName) return '';
+    const sheetCount = Object.keys(excelData).length;
     const rowCount = excelData[currentSheetName].length;
     const colCount = Object.keys(excelData[currentSheetName][0] || {}).length;
-    return `${currentSheetName} sayfasindan ${rowCount} satir ve ${colCount} sutun yuklendi.`;
+    return `${sheetCount} sayfa yuklendi. Ilk sayfa olan ${currentSheetName} icin ${rowCount} satir ve ${colCount} sutun hazir.`;
   }, [excelData, currentSheetName]);
 
   return (

@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ExcelUploader } from '../components/ExcelUploader';
 import { VoiceAssistant } from '../components/VoiceAssistant';
-import { Table, Sparkles, User, FileSpreadsheet, FunctionSquare, Terminal, LogIn, Settings2, X, Filter, Download, Monitor } from 'lucide-react';
+import { Table, Sparkles, User, FileSpreadsheet, FunctionSquare, Terminal, LogIn, Settings2, X, Filter, Download, Monitor, Search, Maximize2, Minimize2, Copy, Sigma, Hash, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import { Footer } from '../components/Footer';
@@ -21,6 +21,7 @@ type ColumnConfig = {
 
 export function Dashboard() {
   const { user, isAuthReady } = useAuth();
+  const gridRef = useRef<any>(null);
   const [excelData, setExcelData] = useState<Record<string, any[]> | null>(null);
   const [activeSheet, setActiveSheet] = useState<string>('');
   const [sheetConfigs, setSheetConfigs] = useState<Record<string, Record<string, ColumnConfig>>>({});
@@ -29,6 +30,15 @@ export function Dashboard() {
   const [savedFilters, setSavedFilters] = useState<FilterGroup[]>([]);
   const [currentFilter, setCurrentFilter] = useState<FilterGroup | null>(null);
   const [isExcelAddin, setIsExcelAddin] = useState(false);
+  const [quickFilterText, setQuickFilterText] = useState('');
+  const [isGridFullscreen, setIsGridFullscreen] = useState(false);
+  const [selectedColumnKey, setSelectedColumnKey] = useState<string>('');
+  const [copiedCellValue, setCopiedCellValue] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    value: string;
+  } | null>(null);
 
   useEffect(() => {
     // Check if running in Excel
@@ -135,6 +145,14 @@ export function Dashboard() {
     return Object.keys(currentSheetData[0] || {});
   }, [currentSheetData]);
 
+  const pinnedColumnKeys = useMemo(() => {
+    const priorityPatterns = [/d\.?t/i, /dt/i, /borclu/i, /ad/i, /isim/i, /name/i, /telefon/i, /tc/i, /id/i];
+    const prioritized = currentSheetColumns
+      .filter((key) => priorityPatterns.some((pattern) => pattern.test(key)))
+      .slice(0, 3);
+    return new Set(prioritized);
+  }, [currentSheetColumns]);
+
   const filteredSheetData = useMemo(() => {
     if (!currentSheetData || currentSheetData.length === 0) return [];
     if (!currentFilter || currentFilter.conditions.length === 0) return currentSheetData;
@@ -196,14 +214,91 @@ export function Dashboard() {
         resizable: true,
         editable: true,
         minWidth: 120,
+        width: Math.max(140, Math.min(280, key.length * 14)),
+        pinned: pinnedColumnKeys.has(key) ? 'left' : undefined,
+        tooltipValueGetter: (params: any) => params.value == null ? '' : String(params.value),
+        wrapHeaderText: true,
+        autoHeaderHeight: true,
+        cellStyle: {
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          lineHeight: '1.5',
+        },
       }))
     ];
-  }, [currentSheetColumns]);
+  }, [currentSheetColumns, pinnedColumnKeys]);
 
   const defaultColDef = useMemo(() => ({
-    flex: 1,
     minWidth: 100,
+    sortable: true,
+    resizable: true,
+    filter: true,
+    editable: true,
+    suppressHeaderMenuButton: false,
   }), []);
+
+  const selectedColumnStats = useMemo(() => {
+    if (!selectedColumnKey || filteredSheetData.length === 0) return null;
+
+    const values = filteredSheetData
+      .map((row) => row?.[selectedColumnKey])
+      .filter((value) => value !== undefined && value !== null && String(value).trim() !== '');
+
+    const numericValues = values
+      .map((value) => Number(String(value).replace(',', '.')))
+      .filter((value) => !Number.isNaN(value));
+
+    return {
+      count: values.length,
+      sum: numericValues.reduce((acc, value) => acc + value, 0),
+      avg: numericValues.length > 0 ? numericValues.reduce((acc, value) => acc + value, 0) / numericValues.length : null,
+      numericCount: numericValues.length,
+    };
+  }, [filteredSheetData, selectedColumnKey]);
+
+  useEffect(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    api.setGridOption('quickFilterText', quickFilterText);
+  }, [quickFilterText]);
+
+  useEffect(() => {
+    if (!currentSheetColumns.length) return;
+    const hasSelectedColumn = selectedColumnKey && currentSheetColumns.includes(selectedColumnKey);
+    if (!hasSelectedColumn) {
+      setSelectedColumnKey(currentSheetColumns[0] || '');
+    }
+  }, [currentSheetColumns, selectedColumnKey]);
+
+  useEffect(() => {
+    setContextMenu(null);
+  }, [activeSheet, currentFilter, quickFilterText, isGridFullscreen]);
+
+  const autoSizeGridColumns = () => {
+    const api = gridRef.current?.api;
+    if (!api || currentSheetColumns.length === 0) return;
+
+    const allColumnIds = api.getColumns()?.map((column: any) => column.getColId()) || [];
+    if (allColumnIds.length === 0) return;
+
+    try {
+      api.autoSizeColumns(allColumnIds);
+    } catch (error) {
+      console.warn('Sutun auto-fit basarisiz oldu:', error);
+    }
+  };
+
+  const handleCopyCellValue = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedCellValue(value);
+      setContextMenu(null);
+      window.setTimeout(() => setCopiedCellValue((prev) => (prev === value ? null : prev)), 1500);
+    } catch (error) {
+      console.error('Hucre kopyalanamadi:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f4f9f5] text-slate-800 font-sans selection:bg-emerald-200">
@@ -358,73 +453,173 @@ export function Dashboard() {
             </div>
             
             <div className="lg:col-span-8 order-1 lg:order-2">
-              <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-sm border border-emerald-100/50 overflow-hidden flex flex-col h-[500px] lg:h-[750px]">
+              <div className={`${isGridFullscreen ? 'fixed inset-4 z-[60]' : ''} bg-white/80 backdrop-blur-xl rounded-3xl shadow-sm border border-emerald-100/50 overflow-hidden flex flex-col h-[calc(100vh-200px)] min-h-[560px]`}>
                 <div className="px-4 sm:px-6 py-4 border-b border-emerald-50 flex flex-col gap-4 bg-white/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex flex-wrap items-center gap-3">
                       <div className="p-2 bg-emerald-50 rounded-xl">
                         <Table className="w-5 h-5 text-emerald-600" />
                       </div>
-                      <h3 className="text-base sm:text-lg font-semibold text-slate-800">Veri Önizleme</h3>
+                      <div>
+                        <h3 className="text-base sm:text-lg font-semibold text-slate-800">Veri Önizleme</h3>
+                        <p className="text-xs text-slate-500">Auto-fit, tooltip, pinned sütunlar ve hızlı arama açık.</p>
+                      </div>
                       <span className="text-[10px] sm:text-xs font-medium text-emerald-700 bg-emerald-100/50 px-3 py-1.5 rounded-full border border-emerald-200/50">
                         {filteredSheetData.length} Satır
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setIsFilterPanelOpen(true)}
-                        className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                          currentFilter 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <Filter className="w-4 h-4" />
-                        {currentFilter ? 'Filtre Aktif' : 'Gelişmiş Filtre'}
-                      </button>
-                      <button
-                        onClick={() => setIsConfigOpen(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition-colors"
-                      >
-                        <Settings2 className="w-4 h-4" />
-                        Sütun Ayarları
-                      </button>
-                      <button
-                        onClick={() => {
-                          import('xlsx').then(XLSX => {
-                            const wb = XLSX.utils.book_new();
-                            Object.entries(configuredExcelData || {}).forEach(([sheetName, sheetData]) => {
-                              const ws = XLSX.utils.json_to_sheet(sheetData as any[]);
-                              XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31));
+                    <div className="flex flex-col gap-3 xl:items-end">
+                      <div className="relative w-full xl:w-72">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                          value={quickFilterText}
+                          onChange={(e) => setQuickFilterText(e.target.value)}
+                          placeholder="Tabloda hızlı ara..."
+                          className="w-full rounded-xl border border-slate-200 bg-white px-10 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-500/10"
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setIsGridFullscreen((prev) => !prev);
+                            window.setTimeout(autoSizeGridColumns, 80);
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition-colors"
+                        >
+                          {isGridFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                          {isGridFullscreen ? 'Tam Ekrandan Çık' : 'Tam Ekran'}
+                        </button>
+                        <button
+                          onClick={() => setIsFilterPanelOpen(true)}
+                          className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                            currentFilter 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Filter className="w-4 h-4" />
+                          {currentFilter ? 'Filtre Aktif' : 'Gelişmiş Filtre'}
+                        </button>
+                        <button
+                          onClick={() => setIsConfigOpen(true)}
+                          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition-colors"
+                        >
+                          <Settings2 className="w-4 h-4" />
+                          Sütun Ayarları
+                        </button>
+                        <button
+                          onClick={() => {
+                            import('xlsx').then(XLSX => {
+                              const wb = XLSX.utils.book_new();
+                              Object.entries(configuredExcelData || {}).forEach(([sheetName, sheetData]) => {
+                                const ws = XLSX.utils.json_to_sheet(sheetData as any[]);
+                                XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31));
+                              });
+                              XLSX.writeFile(wb, 'Duzenlenmis_Veri.xlsx');
                             });
-                            XLSX.writeFile(wb, 'Duzenlenmis_Veri.xlsx');
-                          });
-                        }}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors"
-                      >
-                        <FileSpreadsheet className="w-4 h-4" />
-                        Excel Olarak İndir
-                      </button>
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors"
+                        >
+                          <FileSpreadsheet className="w-4 h-4" />
+                          Excel Olarak İndir
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
                 
-                <div className="flex-1 w-full h-full">
+                <div className="flex-1 w-full h-full relative" onClick={() => setContextMenu(null)}>
                   <AgGridReact
+                    ref={gridRef}
                     theme={themeQuartz.withParams({
                       accentColor: '#10b981',
-                      selectedRowBackgroundColor: '#ecfdf5'
+                      selectedRowBackgroundColor: '#d1fae5',
+                      rowHoverColor: '#f0fdf4',
+                      columnBorder: { color: '#e2e8f0' }
                     })}
                     rowData={filteredSheetData}
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
+                    tooltipShowDelay={150}
+                    enableBrowserTooltips={true}
                     rowSelection={{ mode: 'multiRow', enableClickSelection: false }}
                     animateRows={true}
                     enableCellTextSelection={true}
+                    rowHeight={42}
                     pagination={true}
                     paginationPageSize={100}
                     paginationPageSizeSelector={[50, 100, 200, 500]}
+                    autoSizeStrategy={{ type: 'fitCellContents' }}
+                    onGridReady={() => window.setTimeout(autoSizeGridColumns, 50)}
+                    onFirstDataRendered={() => window.setTimeout(autoSizeGridColumns, 50)}
+                    onCellFocused={(event) => {
+                      if (event.column) {
+                        setSelectedColumnKey(event.column.getColId());
+                      }
+                    }}
+                    onCellClicked={(event) => {
+                      if (event.colDef?.field) {
+                        setSelectedColumnKey(event.colDef.field);
+                      }
+                    }}
+                    onCellContextMenu={(event) => {
+                      event.event?.preventDefault?.();
+                      setSelectedColumnKey(event.colDef?.field || '');
+                      setContextMenu({
+                        x: (event.event as MouseEvent).clientX,
+                        y: (event.event as MouseEvent).clientY,
+                        value: event.value == null ? '' : String(event.value),
+                      });
+                    }}
                   />
+                  {contextMenu && (
+                    <div
+                      className="fixed z-[70] min-w-52 rounded-xl border border-slate-200 bg-white p-2 shadow-2xl"
+                      style={{ left: contextMenu.x, top: contextMenu.y }}
+                    >
+                      <button
+                        onClick={() => handleCopyCellValue(contextMenu.value)}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Hücreyi Kopyala
+                      </button>
+                      <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 break-all">
+                        {contextMenu.value || 'Boş hücre'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-emerald-50 bg-slate-50/80 px-4 sm:px-6 py-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+                      <span className="rounded-full bg-white px-3 py-1.5 font-medium text-slate-600 border border-slate-200">
+                        Seçili Sütun: <span className="text-slate-800">{selectedColumnKey || 'Yok'}</span>
+                      </span>
+                      {copiedCellValue && (
+                        <span className="rounded-full bg-emerald-100 px-3 py-1.5 font-medium text-emerald-700 border border-emerald-200">
+                          Hücre panoya kopyalandı
+                        </span>
+                      )}
+                    </div>
+                    {selectedColumnStats && (
+                      <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+                        <span className="flex items-center gap-2 rounded-full bg-white px-3 py-1.5 font-medium text-slate-700 border border-slate-200">
+                          <Hash className="h-3.5 w-3.5 text-slate-400" />
+                          Sayı: {selectedColumnStats.count}
+                        </span>
+                        <span className="flex items-center gap-2 rounded-full bg-white px-3 py-1.5 font-medium text-slate-700 border border-slate-200">
+                          <Sigma className="h-3.5 w-3.5 text-slate-400" />
+                          Toplam: {selectedColumnStats.numericCount > 0 ? selectedColumnStats.sum.toLocaleString('tr-TR') : '-'}
+                        </span>
+                        <span className="flex items-center gap-2 rounded-full bg-white px-3 py-1.5 font-medium text-slate-700 border border-slate-200">
+                          <TrendingUp className="h-3.5 w-3.5 text-slate-400" />
+                          Ortalama: {selectedColumnStats.avg != null ? selectedColumnStats.avg.toLocaleString('tr-TR', { maximumFractionDigits: 2 }) : '-'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Excel-like Sheet Tabs at the bottom */}

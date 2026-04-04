@@ -65,10 +65,14 @@ export function ProfileSettings() {
     if (!user) return;
     const fetchProfile = async () => {
       try {
-        const docRef = doc(db, `users/${user.uid}/profile`, 'data');
+        const docRef = doc(db, 'users', user.uid);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setProfileData(docSnap.data() as any);
+          const data = docSnap.data() as any;
+          setProfileData({
+            company: data.company || '',
+            title: data.title || ''
+          });
         }
       } catch (error) {
         console.error("Error fetching profile:", error);
@@ -80,7 +84,7 @@ export function ProfileSettings() {
   const handleSaveProfile = async () => {
     if (!user) return;
     try {
-      await setDoc(doc(db, `users/${user.uid}/profile`, 'data'), profileData, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), profileData, { merge: true });
       setIsEditingProfile(false);
     } catch (error) {
       console.error("Error saving profile:", error);

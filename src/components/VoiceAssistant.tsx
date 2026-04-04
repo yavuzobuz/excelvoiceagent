@@ -360,9 +360,14 @@ export function VoiceAssistant({ excelData, isExcelAddin, onUpdateExcelData }: V
       playerRef.current.init();
 
       let dataStr = "";
+      const colLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
       Object.entries(excelData).forEach(([sheetName, data]) => {
         const headers = Object.keys(data[0] || {});
         const rowCount = data.length;
+        const headerMap = headers.map((h, i) => {
+          const letter = i < 26 ? colLetters[i] : colLetters[Math.floor(i / 26) - 1] + colLetters[i % 26];
+          return `${letter}=${h}`;
+        }).join(' | ');
         const sampleRows = data
           .slice(0, 2)
           .map((row, i) => `${i + 1}. satır: ` + Object.values(row).join(' | '))
@@ -371,7 +376,7 @@ export function VoiceAssistant({ excelData, isExcelAddin, onUpdateExcelData }: V
         dataStr += `
 --- SAYFA: ${sheetName} ---
 Toplam satır: ${rowCount}
-Sütunlar: ${headers.join(' | ')}
+Sütunlar (Harf=Başlık): ${headerMap}
 Örnek veriler:
 ${sampleRows}
 `;
@@ -410,20 +415,21 @@ Doğrudan Excel dosyasına müdahale edemezsin. Değişiklikleri 'modifyExcelDat
 12. HESAPLAMA KURALI: Kullanıcı "Sayfa 1'deki A sütunu toplamı ile Sayfa 2'deki J sütunu toplamı arasındaki fark nedir?" gibi karmaşık matematiksel hesaplamalar, iki sayfa arası karşılaştırmalar veya istatistiksel analizler istediğinde KESİNLİKLE 'calculateExcelData' aracını kullan. Bu araç sayesinde JavaScript ile hatasız hesaplama yapıp sonucu kullanıcıya söyleyebilirsin.
 
 13. modifyExcelData KULLANIM KURALLARI (ÇOK KRİTİK — EXCEL UZMANI GİBİ DAVRAN):
-  a) SÜTUN ADLARI: JavaScript kodunda sütun adlarını ASLA tahmin etme. Yukarıda sana verilen "Sütunlar:" satırındaki isimleri BİREBİR kopyala. Büyük/küçük harf, boşluk, Türkçe karakter farkı bile olsa HATALI sonuç üretir. Örneğin sütun adı "İcra Dairesi Tanımı" ise kodda da TAM OLARAK "İcra Dairesi Tanımı" yaz, "icra dairesi" veya "İcra Dairesi" yazma.
-  b) VERİ KORUMA: Mevcut sütunları ASLA silme veya üzerine yazma. Yeni bir sütun eklerken (BİRLEŞTİR, DÜŞEYARA sonucu vb.) mevcut satırın tüm alanlarını koru ve yeni alanı ekle. Her zaman şu kalıbı kullan: return { ...row, 'Yeni Sütun Adı': hesaplanmışDeğer }
-  c) BİRLEŞTİR / CONCATENATE: İki sütunu birleştirmek istendiğinde JavaScript kodu şöyle olmalı:
+  a) SÜTUN HARFI → GERÇEK AD: Kullanıcı 'A sütunu', 'B sütunu' dediğinde, yukarıdaki "Sütunlar (Harf=Başlık)" bilgisine bak ve o harfe karşılık gelen GERÇEK sütun başlığını JavaScript kodunda kullan. Örneğin A=İcra Dairesi Tanımı ise, kullanıcı 'A sütunu' dediğinde kodda row['İcra Dairesi Tanımı'] yaz, ASLA row['A'] yazma. row['A'] undefined döner ve tüm veriyi bozar!
+  b) SÜTUN ADLARI: JavaScript kodunda sütun adlarını ASLA tahmin etme. Yukarıda sana verilen başlık isimlerini BİREBİR kopyala. Büyük/küçük harf, boşluk, Türkçe karakter farkı bile olsa HATALI sonuç üretir.
+  c) VERİ KORUMA: Mevcut sütunları ASLA silme veya üzerine yazma. Yeni bir sütun eklerken mevcut satırın TÜM alanlarını koru. Her zaman şu kalıbı kullan: sheet.map(row => ({ ...row, 'Yeni Sütun': hesaplanmışDeğer }))
+  d) BİRLEŞTİR / CONCATENATE: İki sütunu birleştirmek istendiğinde JavaScript kodu şöyle olmalı:
      const sheet = excelData['SayfaAdı'] || [];
-     const result = sheet.map(row => ({ ...row, 'Birleştirilmiş': String(row['Sütun1'] || '') + ' ' + String(row['Sütun2'] || '') }));
+     const result = sheet.map(row => ({ ...row, 'Birleştirilmiş': String(row['GerçekSütunAdı1'] || '') + ' ' + String(row['GerçekSütunAdı2'] || '') }));
      return { ...excelData, 'SayfaAdı': result };
-  d) KOPYALAMA: Bir sayfadan başka bir sayfaya sütun kopyalamak istendiğinde, kaynak sayfadaki sütun değerlerini hedef sayfanın satırlarına ekle. Hedef sayfada az satır varsa kaynak kadar satır oluştur.
-  e) DÜŞEYARA / VLOOKUP: Eşleştirme yaparken:
+  e) KOPYALAMA: Bir sayfadan başka bir sayfaya sütun kopyalamak istendiğinde, kaynak sayfadaki sütun değerlerini hedef sayfanın satırlarına ekle. Hedef sayfada az satır varsa kaynak kadar satır oluştur.
+  f) DÜŞEYARA / VLOOKUP: Eşleştirme yaparken:
      const match = kaynakSayfa.find(r => String(r['AnahtarSütun'] || '').trim() === String(row['EşleşmeSütunu'] || '').trim());
      Karşılaştırmalarda HER ZAMAN String() ile dönüştür ve trim() ile boşlukları temizle.
-  f) GERİ ALMA: Kullanıcı "geri al" derse, orijinal excelData objesini aynen döndür: return excelData;
-  g) HATA ÖNLEMİ: Her satır işleminde null/undefined kontrolü yap. row['SütunAdı'] yerine (row['SütunAdı'] || '') veya (row['SütunAdı'] ?? '') kullan.
-  h) YENİ SAYFA: Yeni bir sayfa oluşturulacaksa, return değerinde spread operatörü ile mevcut sayfaları koru: return { ...excelData, 'Yeni Sayfa': yeniVeriler };
-  i) TEK ADIMDA YAP: Kullanıcı "kopyala ve birleştir" gibi birden fazla işlem isterse, TÜMÜNÜ TEK BİR modifyExcelData çağrısında yap. Her adımı ayrı çağırma.
+  g) GERİ ALMA: Kullanıcı "geri al" derse, orijinal excelData objesini aynen döndür: return excelData;
+  h) HATA ÖNLEMİ: Her satır işleminde null/undefined kontrolü yap. row['SütunAdı'] yerine (row['SütunAdı'] || '') veya (row['SütunAdı'] ?? '') kullan.
+  i) YENİ SAYFA: Yeni bir sayfa oluşturulacaksa, return değerinde spread operatörü ile mevcut sayfaları koru: return { ...excelData, 'Yeni Sayfa': yeniVeriler };
+  j) TEK ADIMDA YAP: Kullanıcı "kopyala ve birleştir" gibi birden fazla işlem isterse, TÜMÜNÜ TEK BİR modifyExcelData çağrısında yap. Her adımı ayrı çağırma.
 
 14. Cevapların doğal ve akıcı olsun.`;
 

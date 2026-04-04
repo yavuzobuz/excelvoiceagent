@@ -3,7 +3,8 @@ import { Loader2, RefreshCw, FileSpreadsheet, AlertCircle, CheckCircle2 } from '
 import { VoiceAssistant } from '../components/VoiceAssistant';
 
 type LoadState = 'booting' | 'waiting-office' | 'loading-sheet' | 'ready' | 'error';
-const EXCEL_READ_CHUNK_SIZE = 500;
+const MAX_CELLS_PER_CHUNK = 10000;
+const MIN_ROWS_PER_CHUNK = 50;
 
 export function ExcelAddinPage() {
   const [loadState, setLoadState] = useState<LoadState>('booting');
@@ -91,7 +92,7 @@ export function ExcelAddinPage() {
         const workbookData: Record<string, any[]> = {};
         for (const sheet of worksheets.items) {
           const usedRange = sheet.getUsedRangeOrNullObject(true);
-          usedRange.load(['isNullObject', 'rowCount', 'columnCount']);
+          usedRange.load(['isNullObject', 'rowCount', 'columnCount', 'rowIndex', 'columnIndex']);
           await context.sync();
 
           if (usedRange.isNullObject || usedRange.rowCount === 0 || usedRange.columnCount === 0) {
@@ -99,29 +100,64 @@ export function ExcelAddinPage() {
           }
 
           let rows: Record<string, any>[] = [];
+          const rangeRowIndex = typeof usedRange.rowIndex === 'number' ? usedRange.rowIndex : 0;
+          const rangeColumnIndex = typeof usedRange.columnIndex === 'number' ? usedRange.columnIndex : 0;
 
           try {
-            const fullRange = sheet.getRangeByIndexes(0, 0, usedRange.rowCount, usedRange.columnCount);
-            fullRange.load(['values', 'text']);
+            const fullRange = sheet.getRangeByIndexes(
+              rangeRowIndex,
+              rangeColumnIndex,
+              usedRange.rowCount,
+              usedRange.columnCount
+            );
+            fullRange.load(['values']);
             await context.sync();
-            rows = mapRangeToRows((fullRange.values as any[][]) || [], (fullRange.text as string[][]) || []);
+            rows = mapRangeToRows((fullRange.values as any[][]) || [], []);
           } catch (fullReadError) {
             console.warn(`Tam sayfa okuma basarisiz oldu, blok okumaya geciliyor: ${sheet.name}`, fullReadError);
 
             let combinedValues: any[][] = [];
-            let combinedTexts: string[][] = [];
+            let successfulChunkCount = 0;
+            let failedChunkCount = 0;
+            const chunkRowCount = Math.max(
+              Math.floor(MAX_CELLS_PER_CHUNK / Math.max(usedRange.columnCount, 1)),
+              MIN_ROWS_PER_CHUNK
+            );
 
-            for (let startRow = 0; startRow < usedRange.rowCount; startRow += EXCEL_READ_CHUNK_SIZE) {
-              const chunkRowCount = Math.min(EXCEL_READ_CHUNK_SIZE, usedRange.rowCount - startRow);
-              const chunkRange = sheet.getRangeByIndexes(startRow, 0, chunkRowCount, usedRange.columnCount);
-              chunkRange.load(['values', 'text']);
-              await context.sync();
+            for (let startRowOffset = 0; startRowOffset < usedRange.rowCount; startRowOffset += chunkRowCount) {
+              const currentChunkRowCount = Math.min(chunkRowCount, usedRange.rowCount - startRowOffset);
 
-              combinedValues = combinedValues.concat((chunkRange.values as any[][]) || []);
-              combinedTexts = combinedTexts.concat((chunkRange.text as string[][]) || []);
+              try {
+                const chunkRange = sheet.getRangeByIndexes(
+                  rangeRowIndex + startRowOffset,
+                  rangeColumnIndex,
+                  currentChunkRowCount,
+                  usedRange.columnCount
+                );
+                chunkRange.load(['values']);
+                await context.sync();
+
+                combinedValues = combinedValues.concat((chunkRange.values as any[][]) || []);
+                successfulChunkCount += 1;
+              } catch (chunkError) {
+                failedChunkCount += 1;
+                console.warn(
+                  `Blok okunamadi, atlanıyor: ${sheet.name} satir ${rangeRowIndex + startRowOffset}-${
+                    rangeRowIndex + startRowOffset + currentChunkRowCount - 1
+                  }`,
+                  chunkError
+                );
+                combinedValues = combinedValues.concat(Array.from({ length: currentChunkRowCount }, () => []));
+              }
             }
 
-            rows = mapRangeToRows(combinedValues, combinedTexts);
+            if (failedChunkCount > 0) {
+              console.warn(
+                `${sheet.name} sayfasinda ${failedChunkCount} blok atlandi, ${successfulChunkCount} blok okundu.`
+              );
+            }
+
+            rows = mapRangeToRows(combinedValues, []);
           }
 
           if (rows.length > 0) {

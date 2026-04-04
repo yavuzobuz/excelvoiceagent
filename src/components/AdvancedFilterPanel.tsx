@@ -54,6 +54,18 @@ export function AdvancedFilterPanel({
   const [filterName, setFilterName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  function handleAddCondition() {
+    setConditions((prevConditions) => [
+      ...prevConditions,
+      {
+        id: Math.random().toString(36).substring(7),
+        column: columns[0] || '',
+        operator: 'contains',
+        value: ''
+      }
+    ]);
+  }
+
   useEffect(() => {
     if (currentFilter) {
       setLogic(currentFilter.logic);
@@ -65,18 +77,6 @@ export function AdvancedFilterPanel({
   }, [currentFilter, columns, isOpen]);
 
   if (!isOpen) return null;
-
-  const handleAddCondition = () => {
-    setConditions([
-      ...conditions,
-      {
-        id: Math.random().toString(36).substring(7),
-        column: columns[0] || '',
-        operator: 'contains',
-        value: ''
-      }
-    ]);
-  };
 
   const handleRemoveCondition = (id: string) => {
     setConditions(conditions.filter(c => c.id !== id));

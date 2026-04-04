@@ -411,10 +411,9 @@ export function Dashboard() {
                     rowData={filteredSheetData}
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
-                    rowSelection="multiple"
+                    rowSelection={{ mode: 'multiRow', enableClickSelection: false }}
                     animateRows={true}
                     enableCellTextSelection={true}
-                    suppressRowClickSelection={true}
                     pagination={true}
                     paginationPageSize={100}
                     paginationPageSizeSelector={[50, 100, 200, 500]}

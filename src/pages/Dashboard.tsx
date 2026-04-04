@@ -124,7 +124,16 @@ export function Dashboard() {
     return newData;
   }, [excelData, sheetConfigs]);
 
-  const currentSheetData = configuredExcelData && activeSheet ? configuredExcelData[activeSheet] : [];
+  const currentSheetData = useMemo(() => {
+    if (!configuredExcelData || !activeSheet) return [];
+    const sheetData = configuredExcelData[activeSheet];
+    return Array.isArray(sheetData) ? sheetData : [];
+  }, [configuredExcelData, activeSheet]);
+
+  const currentSheetColumns = useMemo(() => {
+    if (currentSheetData.length === 0) return [];
+    return Object.keys(currentSheetData[0] || {});
+  }, [currentSheetData]);
 
   const filteredSheetData = useMemo(() => {
     if (!currentSheetData || currentSheetData.length === 0) return [];
@@ -165,9 +174,7 @@ export function Dashboard() {
   }, [currentSheetData, currentFilter]);
 
   const columnDefs = useMemo(() => {
-    if (!currentSheetData || currentSheetData.length === 0) return [];
-    
-    const keys = Object.keys(currentSheetData[0] || {});
+    if (currentSheetColumns.length === 0) return [];
     
     return [
       {
@@ -181,7 +188,7 @@ export function Dashboard() {
         resizable: false,
         cellStyle: { backgroundColor: '#f8fafc', color: '#64748b', textAlign: 'center', borderRight: '1px solid #e2e8f0' }
       },
-      ...keys.map(key => ({
+      ...currentSheetColumns.map(key => ({
         field: key,
         headerName: key,
         sortable: true,
@@ -191,7 +198,7 @@ export function Dashboard() {
         minWidth: 120,
       }))
     ];
-  }, [currentSheetData]);
+  }, [currentSheetColumns]);
 
   const defaultColDef = useMemo(() => ({
     flex: 1,
@@ -510,7 +517,7 @@ export function Dashboard() {
       <AdvancedFilterPanel
         isOpen={isFilterPanelOpen}
         onClose={() => setIsFilterPanelOpen(false)}
-        columns={Object.keys(currentSheetData[0] || {}).map(key => sheetConfigs[activeSheet]?.[key]?.newName || key)}
+        columns={currentSheetColumns.map(key => sheetConfigs[activeSheet]?.[key]?.newName || key)}
         onApply={(filter) => setCurrentFilter(filter)}
         savedFilters={savedFilters}
         onSaveFilter={(filter) => setSavedFilters(prev => [...prev.filter(f => f.id !== filter.id), filter])}

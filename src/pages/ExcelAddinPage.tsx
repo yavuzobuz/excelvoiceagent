@@ -103,62 +103,48 @@ export function ExcelAddinPage() {
           const rangeRowIndex = typeof usedRange.rowIndex === 'number' ? usedRange.rowIndex : 0;
           const rangeColumnIndex = typeof usedRange.columnIndex === 'number' ? usedRange.columnIndex : 0;
 
-          try {
-            const fullRange = sheet.getRangeByIndexes(
-              rangeRowIndex,
-              rangeColumnIndex,
-              usedRange.rowCount,
-              usedRange.columnCount
-            );
-            fullRange.load(['values']);
-            await context.sync();
-            rows = mapRangeToRows((fullRange.values as any[][]) || [], []);
-          } catch (fullReadError) {
-            console.warn(`Tam sayfa okuma basarisiz oldu, blok okumaya geciliyor: ${sheet.name}`, fullReadError);
+          let combinedValues: any[][] = [];
+          let successfulChunkCount = 0;
+          let failedChunkCount = 0;
+          const chunkRowCount = Math.max(
+            Math.floor(MAX_CELLS_PER_CHUNK / Math.max(usedRange.columnCount, 1)),
+            MIN_ROWS_PER_CHUNK
+          );
 
-            let combinedValues: any[][] = [];
-            let successfulChunkCount = 0;
-            let failedChunkCount = 0;
-            const chunkRowCount = Math.max(
-              Math.floor(MAX_CELLS_PER_CHUNK / Math.max(usedRange.columnCount, 1)),
-              MIN_ROWS_PER_CHUNK
-            );
+          for (let startRowOffset = 0; startRowOffset < usedRange.rowCount; startRowOffset += chunkRowCount) {
+            const currentChunkRowCount = Math.min(chunkRowCount, usedRange.rowCount - startRowOffset);
 
-            for (let startRowOffset = 0; startRowOffset < usedRange.rowCount; startRowOffset += chunkRowCount) {
-              const currentChunkRowCount = Math.min(chunkRowCount, usedRange.rowCount - startRowOffset);
-
-              try {
-                const chunkRange = sheet.getRangeByIndexes(
-                  rangeRowIndex + startRowOffset,
-                  rangeColumnIndex,
-                  currentChunkRowCount,
-                  usedRange.columnCount
-                );
-                chunkRange.load(['values']);
-                await context.sync();
-
-                combinedValues = combinedValues.concat((chunkRange.values as any[][]) || []);
-                successfulChunkCount += 1;
-              } catch (chunkError) {
-                failedChunkCount += 1;
-                console.warn(
-                  `Blok okunamadi, atlanıyor: ${sheet.name} satir ${rangeRowIndex + startRowOffset}-${
-                    rangeRowIndex + startRowOffset + currentChunkRowCount - 1
-                  }`,
-                  chunkError
-                );
-                combinedValues = combinedValues.concat(Array.from({ length: currentChunkRowCount }, () => []));
-              }
-            }
-
-            if (failedChunkCount > 0) {
-              console.warn(
-                `${sheet.name} sayfasinda ${failedChunkCount} blok atlandi, ${successfulChunkCount} blok okundu.`
+            try {
+              const chunkRange = sheet.getRangeByIndexes(
+                rangeRowIndex + startRowOffset,
+                rangeColumnIndex,
+                currentChunkRowCount,
+                usedRange.columnCount
               );
-            }
+              chunkRange.load(['values']);
+              await context.sync();
 
-            rows = mapRangeToRows(combinedValues, []);
+              combinedValues = combinedValues.concat((chunkRange.values as any[][]) || []);
+              successfulChunkCount += 1;
+            } catch (chunkError) {
+              failedChunkCount += 1;
+              console.warn(
+                `Blok okunamadi, atlaniyor: ${sheet.name} satir ${rangeRowIndex + startRowOffset}-${
+                  rangeRowIndex + startRowOffset + currentChunkRowCount - 1
+                }`,
+                chunkError
+              );
+              combinedValues = combinedValues.concat(Array.from({ length: currentChunkRowCount }, () => []));
+            }
           }
+
+          if (failedChunkCount > 0) {
+            console.warn(
+              `${sheet.name} sayfasinda ${failedChunkCount} blok atlandi, ${successfulChunkCount} blok okundu.`
+            );
+          }
+
+          rows = mapRangeToRows(combinedValues, []);
 
           if (rows.length > 0) {
             workbookData[sheet.name || `Sayfa${Object.keys(workbookData).length + 1}`] = rows;

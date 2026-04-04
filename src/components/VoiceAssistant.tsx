@@ -258,10 +258,11 @@ export function VoiceAssistant({ excelData, isExcelAddin, onUpdateExcelData }: V
     if (!searchResults) return null;
     return searchResults.filter(result => {
       for (const [key, value] of Object.entries(searchFilters)) {
+        const filterVal = String(value).trim().toLowerCase();
         if (key === 'sayfa') {
-          if (String(result.sayfa) !== value) return false;
+          if (String(result.sayfa).trim().toLowerCase() !== filterVal) return false;
         } else {
-          if (String(result.veri[key]) !== value) return false;
+          if (String(result.veri[key] ?? '').trim().toLowerCase() !== filterVal) return false;
         }
       }
       return true;
@@ -563,12 +564,18 @@ Doğrudan Excel dosyasına müdahale edemezsin. Değişiklikleri 'modifyExcelDat
                     setSearchResults(results);
 
                     sessionPromise.then((session) => {
+                      const resultSummary = results.length > 0
+                        ? results.map((r, i) => {
+                            const entries = Object.entries(r.veri).map(([k, v]) => `${k}: ${v}`).join(', ');
+                            return `Sonuç ${i + 1} (Sayfa: ${r.sayfa}, Satır: ${r.satır}): ${entries}`;
+                          }).join('\n')
+                        : "Kayıt bulunamadı.";
                       session.sendToolResponse({
                         functionResponses: [{
                           id: call.id,
                           name: call.name,
                           response: { 
-                            result: results.length > 0 ? "Kayıtlar bulundu ve ekranda gösterildi." : "Kayıt bulunamadı."
+                            result: resultSummary
                           }
                         }]
                       });

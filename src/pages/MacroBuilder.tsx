@@ -128,7 +128,17 @@ Lütfen yanıtını aşağıdaki JSON formatında döndür:
       });
 
       if (response.text) {
-        const result = JSON.parse(response.text);
+        let cleanJson = response.text.trim();
+        // Strip markdown code fences if present
+        const fenceMatch = cleanJson.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (fenceMatch) cleanJson = fenceMatch[1].trim();
+        // Take only the first valid JSON block
+        const braceStart = cleanJson.indexOf('{');
+        const braceEnd = cleanJson.lastIndexOf('}');
+        if (braceStart !== -1 && braceEnd !== -1) {
+          cleanJson = cleanJson.slice(braceStart, braceEnd + 1);
+        }
+        const result = JSON.parse(cleanJson);
         setGeneratedMacro(result);
       } else {
         throw new Error('Yanıt alınamadı.');

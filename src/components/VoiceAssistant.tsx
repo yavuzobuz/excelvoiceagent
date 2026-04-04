@@ -224,7 +224,7 @@ export function VoiceAssistant({ excelData, isExcelAddin, onUpdateExcelData }: V
   const recorderRef = useRef<AudioRecorder | null>(null);
   const playerRef = useRef<AudioPlayer | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const textInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
 
   const availableSearchFilters = useMemo(() => {
     if (!searchResults || searchResults.length === 0) return {};
@@ -288,9 +288,20 @@ export function VoiceAssistant({ excelData, isExcelAddin, onUpdateExcelData }: V
     }, 0);
   };
 
-  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     event.stopPropagation();
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSendText(event);
+    }
   };
+
+  useEffect(() => {
+    const el = textInputRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  }, [textInput]);
 
   const convertSheetDataToValues = (sheetData: any[]) => {
     if (!sheetData || sheetData.length === 0) {
@@ -1373,9 +1384,8 @@ Doğrudan Excel dosyasına müdahale edemezsin. Değişiklikleri 'modifyExcelDat
             onSubmit={handleSendText}
             className="flex gap-2 items-center"
           >
-            <input
+            <textarea
               ref={textInputRef}
-              type="text"
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
               onClick={keepFocusInTaskpane}
@@ -1385,7 +1395,8 @@ Doğrudan Excel dosyasına müdahale edemezsin. Değişiklikleri 'modifyExcelDat
               onKeyUp={keepFocusInTaskpane}
               disabled={isConnecting}
               placeholder="Mesajınızı yazın..."
-              className="flex-1 px-4 py-3 text-sm rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:opacity-50 disabled:bg-slate-50 transition-all"
+              rows={1}
+              className="flex-1 resize-none overflow-y-auto px-4 py-3 text-sm leading-6 rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:opacity-50 disabled:bg-slate-50 transition-all"
             />
             <button
               type="submit"

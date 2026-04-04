@@ -73,6 +73,7 @@ export function FormulaVoiceAssistant() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [textInput, setTextInput] = useState('');
+  const [textInputRows, setTextInputRows] = useState(1);
 
   const sessionRef = useRef<any>(null);
   const recorderRef = useRef<AudioRecorder | null>(null);
@@ -317,6 +318,18 @@ export function FormulaVoiceAssistant() {
     }
   };
 
+  const handleTextInputChange = (value: string) => {
+    setTextInput(value);
+    setTextInputRows(Math.min(Math.max(value.split('\n').length, 1), 4));
+  };
+
+  const handleTextInputKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSendText(event);
+    }
+  };
+
   const handleCopyFormula = () => {
     if (formulaConfig?.formula) {
       navigator.clipboard.writeText(formulaConfig.formula);
@@ -432,13 +445,14 @@ export function FormulaVoiceAssistant() {
                 onSubmit={handleSendText}
                 className="flex gap-2 items-center"
               >
-                <input
-                  type="text"
+                <textarea
                   value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
+                  onChange={(e) => handleTextInputChange(e.target.value)}
+                  onKeyDown={handleTextInputKeyDown}
                   disabled={isConnecting}
                   placeholder="Mesajınızı yazın..."
-                  className="flex-1 px-4 py-3 text-sm rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:opacity-50 disabled:bg-slate-50 transition-all"
+                  rows={textInputRows}
+                  className="flex-1 resize-none overflow-y-auto px-4 py-3 text-sm leading-6 rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:opacity-50 disabled:bg-slate-50 transition-all"
                 />
                 <button
                   type="submit"

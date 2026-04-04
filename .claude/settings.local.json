@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/Obuzhukuk/Desktop/excel-veri-arama-asistanı-son-hali -type f -name *.js -o -name *.ts -o -name *.jsx -o -name *.tsx)"
+    ]
+  }
+}

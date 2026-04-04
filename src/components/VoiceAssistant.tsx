@@ -360,12 +360,20 @@ export function VoiceAssistant({ excelData, isExcelAddin, onUpdateExcelData }: V
 
       let dataStr = "";
       Object.entries(excelData).forEach(([sheetName, data]) => {
-        const headers = Object.keys(data[0] || {}).join(' | ');
-        let rows = '';
-        for (let i = 0; i < Math.min(data.length, 2500); i++) {
-          rows += `${i + 1}. satır: ` + Object.values(data[i]).join(' | ') + '\n';
-        }
-        dataStr += `\n--- SAYFA: ${sheetName} ---\nSütunlar: ${headers}\nSatırlar:\n${rows}\n`;
+        const headers = Object.keys(data[0] || {});
+        const rowCount = data.length;
+        const sampleRows = data
+          .slice(0, 2)
+          .map((row, i) => `${i + 1}. satır: ` + Object.values(row).join(' | '))
+          .join('\n');
+
+        dataStr += `
+--- SAYFA: ${sheetName} ---
+Toplam satır: ${rowCount}
+Sütunlar: ${headers.join(' | ')}
+Örnek veriler:
+${sampleRows}
+`;
       });
 
       const systemInstruction = `Sen bir Excel veri asistanısın. Görevin, kullanıcının yüklediği Excel verilerini sesli olarak okumak, soruları yanıtlamak, grafikler oluşturmak ve Excel formülleri/makroları yazmaktır.
@@ -387,7 +395,7 @@ Doğrudan Excel dosyasına müdahale edemezsin. Değişiklikleri 'modifyExcelDat
 `}
 
 ÇOK ÖNEMLİ KURALLAR:
-1. ASLA VERİ UYDURMA. Tabloda yazan rakamları birebir oku.
+1. ASLA VERİ UYDURMA. Tam Excel verisini görmüyorsun; sana sadece metadata, başlıklar ve az sayıda örnek satır veriliyor. Belirli kayıt, satır, toplam, eşleşme veya detay gerektiğinde uygun aracı kullan.
 2. SAYILARI OKUMA KURALI (ÇOK KRİTİK): 5 haneden büyük sayıları, ID numaralarını, DT numaralarını veya barkodları (örneğin 21864996) okurken ASLA "iki yüz on sekiz bin" gibi gruplayarak veya yuvarlayarak okuma. Bu tür büyük sayıları HER ZAMAN rakam rakam, tane tane oku (örneğin: "iki, bir, sekiz, altı, dört, dokuz, dokuz, altı").
 3. Kullanıcı belirli bir numara, ID veya değer aradığında tabloda doğrudan göremiyorsan hemen 'searchExcelData' fonksiyonunu kullanarak o değeri tam eşleşme ile ara.
 4. GRAFİK OLUŞTURMA SINIRI: Kullanıcı grafik istediğinde 'renderChart' fonksiyonunu kullan. Grafikleri (görsel olarak) doğrudan Excel dosyasının içine EKLEYEMEZSİN. Ancak kullanıcı grafikteki veya analizdeki VERİLERİ yeni bir Excel dosyasına kaydetmek isterse, 'modifyExcelData' fonksiyonunu kullanarak bu özet/analiz verilerini içeren yeni bir sayfa (örneğin 'Analiz Sonucu') oluştur ve kullanıcının indirmesini sağla. "Grafiği görsel olarak ekleyemem ama verilerini yeni bir dosya olarak indirebilmeniz için hazırladım" diyerek yönlendir.
